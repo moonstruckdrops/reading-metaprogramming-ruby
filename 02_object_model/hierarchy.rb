@@ -32,6 +32,7 @@ end
 class C1
   def name
     'C1'
+
   end
 end
 
