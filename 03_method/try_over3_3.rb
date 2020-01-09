@@ -5,6 +5,13 @@ TryOver3 = Module.new
 # - `test_` から始まるインスタンスメソッドが実行された場合、このクラスは `run_test` メソッドを実行する
 # - `test_` メソッドがこのクラスに実装されていなくても `test_` から始まるメッセージに応答することができる
 # - TryOver3::A1 には `test_` から始まるインスタンスメソッドが定義されていない
+class TryOver3::A1
+  def run_test; nil end
+
+  def method_missing name, *args
+    name =~ /test_.*/ ? run_test : super
+  end
+end
 
 
 # Q2
@@ -15,6 +22,24 @@ class TryOver3::A2
   def initialize(name, value)
     instance_variable_set("@#{name}", value)
     self.class.attr_accessor name.to_sym unless respond_to? name.to_sym
+  end
+end
+
+class TryOver3::A2Proxy
+  def initialize(source)
+    @source = source
+  end
+
+  def respond_to_missing?(name, include_private)
+    @source.respond_to?(name)
+  end
+
+  def method_missing name, *args
+    if name =~ /.*=$/
+      @source.instance_variable_set("@#{name.to_s.gsub("=", "")}".to_sym, args.first)
+    else
+      @source.respond_to?(name) ? @source.send(name) : super
+    end
   end
 end
 
@@ -37,6 +62,10 @@ module TryOver3::OriginalAccessor2
           end
         end
         @attr = value
+
+        unless [true, false].include?(value)
+          self.class.undef_method("#{attr_sym}?") if respond_to?("#{attr_sym}?")
+        end
       end
     end
   end
@@ -48,7 +77,25 @@ end
 # TryOver3::A4.runners = [:Hoge]
 # TryOver3::A4::Hoge.run
 # # => "run Hoge"
+class TryOver3::A4
+  class << self
+    def runners=(runners)
+      @runners = runners
+    end
 
+    def const_missing(const_name)
+      if @runners.include?(const_name)
+        const_set(const_name, Class.new(self) do |klass|
+                    def self.run
+                      "run Hoge"
+                    end
+                  end)
+      else
+        super
+      end
+    end
+  end
+end
 
 # Q5. チャレンジ問題！ 挑戦する方はテストの skip を外して挑戦してみてください。
 #
